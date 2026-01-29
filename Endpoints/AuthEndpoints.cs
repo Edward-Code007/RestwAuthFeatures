@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using RestAuth.Models;
 using RestAuth.Services;
 
@@ -44,22 +45,28 @@ public static class AuthEndpoints
         .WithName("Login")
         .WithDescription("Inicia sesión y obtiene tokens");
 
-        group.MapPost("/refresh", (RefreshRequest request, IUserService userService, ITokenService tokenService) =>
+        group.MapPost("/refresh", (RefreshRequest request, IUserService userService, ITokenService tokenService, ILogger<Program> logger) =>
         {
-            var storedToken = tokenService.GetRefreshToken(request.RefreshToken);
+            var result = tokenService.ValidateAndUseRefreshToken(request.RefreshToken);
 
-            if (storedToken == null)
+            if (result.WasReused)
+            {
+                logger.LogWarning(
+                    "Refresh token reuse detected for family {FamilyId}. Possible token theft.",
+                    result.FamilyId);
+                return Results.Unauthorized();
+            }
+
+            if (!result.IsValid)
                 return Results.Unauthorized();
 
-            var user = userService.GetById(storedToken.UserId);
+            var user = userService.GetById(result.Token!.UserId);
 
             if (user == null)
                 return Results.Unauthorized();
 
-            tokenService.RevokeRefreshToken(request.RefreshToken);
-
             var newAccessToken = tokenService.GenerateAccessToken(user);
-            var newRefreshToken = tokenService.GenerateRefreshToken(user.Id);
+            var newRefreshToken = tokenService.GenerateRefreshToken(user.Id, result.Token.FamilyId);
 
             return Results.Ok(new AuthResponse(
                 newAccessToken,
@@ -80,6 +87,17 @@ public static class AuthEndpoints
         })
         .WithName("Revoke")
         .WithDescription("Revoca un refresh token (logout)");
+
+        group.MapPost("/logout-all", (ClaimsPrincipal user, ITokenService tokenService) =>
+        {
+            var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            tokenService.RevokeAllUserTokens(userId);
+
+            return Results.Ok(new { message = "Todas las sesiones han sido cerradas" });
+        })
+        .RequireAuthorization()
+        .WithName("LogoutAll")
+        .WithDescription("Revoca todos los refresh tokens del usuario (logout de todas las sesiones)");
 
         return app;
     }

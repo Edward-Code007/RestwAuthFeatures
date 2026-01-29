@@ -12,8 +12,11 @@ public interface ITokenService
 {
     string GenerateAccessToken(User user);
     RefreshToken GenerateRefreshToken(Guid userId);
-    RefreshToken? GetRefreshToken(string token);
+    RefreshToken GenerateRefreshToken(Guid userId, string familyId);
+    RefreshTokenResult ValidateAndUseRefreshToken(string token);
     bool RevokeRefreshToken(string token);
+    void RevokeTokenFamily(string familyId);
+    void RevokeAllUserTokens(Guid userId);
     ClaimsPrincipal? ValidateAccessToken(string token);
 }
 
@@ -63,6 +66,11 @@ public class TokenService : ITokenService
 
     public RefreshToken GenerateRefreshToken(Guid userId)
     {
+        return GenerateRefreshToken(userId, Guid.NewGuid().ToString());
+    }
+
+    public RefreshToken GenerateRefreshToken(Guid userId, string familyId)
+    {
         var expirationDays = int.Parse(
             _configuration["Jwt:RefreshTokenExpirationDays"] ?? "7");
 
@@ -70,22 +78,32 @@ public class TokenService : ITokenService
         {
             Token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64)),
             UserId = userId,
-            ExpiresAt = DateTime.UtcNow.AddDays(expirationDays)
+            FamilyId = familyId,
+            ExpiresAt = DateTime.UtcNow.AddDays(expirationDays),
+            IsUsed = false
         };
 
         _refreshTokens[refreshToken.Token] = refreshToken;
         return refreshToken;
     }
 
-    public RefreshToken? GetRefreshToken(string token)
+    public RefreshTokenResult ValidateAndUseRefreshToken(string token)
     {
         if (!_refreshTokens.TryGetValue(token, out var refreshToken))
-            return null;
+            return RefreshTokenResult.Invalid();
 
         if (refreshToken.IsRevoked || refreshToken.ExpiresAt < DateTime.UtcNow)
-            return null;
+            return RefreshTokenResult.Invalid();
 
-        return refreshToken;
+        if (refreshToken.IsUsed)
+        {
+            RevokeTokenFamily(refreshToken.FamilyId);
+            return RefreshTokenResult.Reused(refreshToken.FamilyId);
+        }
+
+        refreshToken.IsUsed = true;
+
+        return RefreshTokenResult.Valid(refreshToken);
     }
 
     public bool RevokeRefreshToken(string token)
@@ -95,6 +113,28 @@ public class TokenService : ITokenService
 
         refreshToken.IsRevoked = true;
         return true;
+    }
+
+    public void RevokeTokenFamily(string familyId)
+    {
+        var familyTokens = _refreshTokens.Values
+            .Where(t => t.FamilyId == familyId);
+
+        foreach (var token in familyTokens)
+        {
+            token.IsRevoked = true;
+        }
+    }
+
+    public void RevokeAllUserTokens(Guid userId)
+    {
+        var userTokens = _refreshTokens.Values
+            .Where(t => t.UserId == userId);
+
+        foreach (var token in userTokens)
+        {
+            token.IsRevoked = true;
+        }
     }
 
     public ClaimsPrincipal? ValidateAccessToken(string token)
