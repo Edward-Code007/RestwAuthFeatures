@@ -1,6 +1,95 @@
 @RestAuth_HostAddress = http://localhost:5224
+@accessToken = {{login.response.body.accessToken}}
+@refreshToken = {{login.response.body.refreshToken}}
 
-GET {{RestAuth_HostAddress}}/weatherforecast/
-Accept: application/json
+### Registrar nuevo usuario
+POST {{RestAuth_HostAddress}}/auth/register
+Content-Type: application/json
 
-###
+{
+  "username": "testuser",
+  "email": "test@example.com",
+  "password": "password123"
+}
+
+### Login con usuario admin (preexistente)
+# @name login
+POST {{RestAuth_HostAddress}}/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "admin123"
+}
+
+### Obtener información del usuario actual (requiere auth)
+GET {{RestAuth_HostAddress}}/me
+Authorization: Bearer {{accessToken}}
+
+### Renovar tokens
+POST {{RestAuth_HostAddress}}/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}
+
+### Revocar refresh token (logout)
+POST {{RestAuth_HostAddress}}/auth/revoke
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}
+
+### Probar acceso sin token (debe fallar con 401)
+GET {{RestAuth_HostAddress}}/me
+
+###############################################
+# ENDPOINTS DE ADMINISTRACIÓN (requiere Admin)
+###############################################
+
+### Listar todos los usuarios (solo Admin)
+GET {{RestAuth_HostAddress}}/admin/users
+Authorization: Bearer {{accessToken}}
+
+### Obtener usuario por ID (reemplazar con ID real)
+@userId = 00000000-0000-0000-0000-000000000000
+GET {{RestAuth_HostAddress}}/admin/users/{{userId}}
+Authorization: Bearer {{accessToken}}
+
+### Agregar rol a usuario
+POST {{RestAuth_HostAddress}}/admin/users/{{userId}}/roles
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "role": "Moderator"
+}
+
+### Quitar rol a usuario
+DELETE {{RestAuth_HostAddress}}/admin/users/{{userId}}/roles/Moderator
+Authorization: Bearer {{accessToken}}
+
+### Eliminar usuario
+DELETE {{RestAuth_HostAddress}}/admin/users/{{userId}}
+Authorization: Bearer {{accessToken}}
+
+###############################################
+# PRUEBA DE AUTORIZACIÓN POR ROL
+###############################################
+
+### Login con usuario normal (sin rol Admin)
+# @name loginUser
+POST {{RestAuth_HostAddress}}/auth/login
+Content-Type: application/json
+
+{
+  "username": "testuser",
+  "password": "password123"
+}
+
+### Intentar acceder a /admin/users con usuario normal (debe fallar con 403)
+@userToken = {{loginUser.response.body.accessToken}}
+GET {{RestAuth_HostAddress}}/admin/users
+Authorization: Bearer {{userToken}}
