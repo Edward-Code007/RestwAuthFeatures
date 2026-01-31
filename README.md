@@ -11,12 +11,14 @@ Este proyecto tiene como finalidad demostrar conocimientos en:
 - Aplicación de buenas prácticas de seguridad en el desarrollo de software
 - Arquitectura de APIs con ASP.NET Core y Minimal APIs
 - Patrones de diseño como Dependency Injection, Repository Pattern y DTOs
+- Implementación de Rate Limiting para protección contra abuso
 
 ## Tecnologías
 
 - **Framework**: ASP.NET Core 10.0
 - **Lenguaje**: C#
 - **Autenticación**: JWT Bearer Tokens
+- **Rate Limiting**: Built-in ASP.NET Core Rate Limiting (Sliding Window)
 - **Documentación API**: OpenAPI/Swagger
 - **Estilo de Endpoints**: Minimal APIs
 
@@ -39,6 +41,36 @@ Este proyecto tiene como finalidad demostrar conocimientos en:
 - Validación de issuer y audience
 - **Detección de reutilización de refresh tokens**: Seguimiento por familia de tokens para detectar robo
 - Revocación automática de toda la familia de tokens cuando se detecta reutilización
+
+### Rate Limiting
+
+Implementación de rate limiting usando **Sliding Window** para proteger contra ataques de fuerza bruta y abuso de la API.
+
+#### Configuración actual
+
+| Política | Límite | Ventana | Endpoints |
+|----------|--------|---------|-----------|
+| Global | 100 req/min | Sliding Window (6 segmentos) | Todos |
+| Auth | 10 req/min | Sliding Window (6 segmentos) | `/auth/login`, `/auth/register` |
+
+#### Características
+
+- **Sliding Window**: Distribución más suave que Fixed Window, evita el problema del "borde de ventana"
+- **Particionado por IP**: Cada cliente tiene su propio contador independiente
+- **Respuesta 429**: Cuando se excede el límite, retorna `HTTP 429 Too Many Requests` con header `Retry-After`
+- **Sin cola**: Las requests excedentes se rechazan inmediatamente (`QueueLimit = 0`)
+
+#### Respuesta cuando se excede el límite
+
+```json
+HTTP/1.1 429 Too Many Requests
+Retry-After: 60
+
+{
+  "error": "Demasiadas solicitudes. Por favor, intenta de nuevo más tarde.",
+  "retryAfterSeconds": 60
+}
+```
 
 ### Autorización
 
@@ -203,3 +235,5 @@ Authorization: Bearer tu-access-token
 - **Detección de reutilización de refresh tokens** basada en familias de tokens
 - **Logging de seguridad** para eventos de reutilización de tokens sospechosos
 - **Comparación de tiempo constante** para verificación de contraseñas
+- **Rate Limiting con Sliding Window** para protección contra fuerza bruta y DDoS
+- **Límites diferenciados** por tipo de endpoint (más restrictivo en autenticación)
