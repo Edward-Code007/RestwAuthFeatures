@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using System.Text;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using RestAuth.Endpoints;
 using RestAuth.Models;
@@ -39,6 +41,43 @@ builder.Services.AddAuthorization(options =>
 
     options.AddPolicy("UserOrAdmin", policy =>
         policy.RequireRole("User", "Admin"));
+
+});
+
+
+builder.Services.AddRateLimiter(options =>
+{
+    
+
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+        RateLimitPartition.GetSlidingWindowLimiter(
+            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new SlidingWindowRateLimiterOptions
+            {
+                PermitLimit = 100,
+                Window = TimeSpan.FromMinutes(1),
+                SegmentsPerWindow = 6, 
+            }));
+
+
+    options.AddSlidingWindowLimiter("auth", config =>
+    {
+        config.PermitLimit = 10;
+        config.Window = TimeSpan.FromMinutes(1);
+        config.SegmentsPerWindow = 6;
+    });
+
+
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        context.HttpContext.Response.Headers.RetryAfter = "60";
+        await context.HttpContext.Response.WriteAsJsonAsync(new
+        {
+            error = "Demasiadas solicitudes. Por favor, intenta de nuevo más tarde.",
+            retryAfterSeconds = 60
+        }, cancellationToken);
+    };
 });
 
 var app = builder.Build();
@@ -49,6 +88,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 

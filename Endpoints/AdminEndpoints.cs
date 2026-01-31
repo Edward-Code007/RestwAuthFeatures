@@ -12,11 +12,11 @@ public static class AdminEndpoints
             .WithTags("Administration")
             .RequireAuthorization("AdminOnly");
 
-        group.MapGet("/users", (IUserService userService) =>
+        group.MapGet("/users",IResult (IUserService userService) =>
         {
             var users = userService.GetAll()
                 .Select(u => new UserResponse(u.Id, u.Username, u.Email, u.Roles));
-
+            
             return Results.Ok(users);
         })
         .WithName("GetAllUsers")

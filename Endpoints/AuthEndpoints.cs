@@ -24,7 +24,8 @@ public static class AuthEndpoints
                 user.Id, user.Username, user.Email, user.Roles));
         })
         .WithName("Register")
-        .WithDescription("Registra un nuevo usuario");
+        .WithDescription("Registra un nuevo usuario")
+        .RequireRateLimiting("auth");
 
         group.MapPost("/login", (LoginRequest request, IUserService userService, ITokenService tokenService) =>
         {
@@ -43,7 +44,8 @@ public static class AuthEndpoints
                     int.Parse(config["Jwt:AccessTokenExpirationMinutes"] ?? "15"))));
         })
         .WithName("Login")
-        .WithDescription("Inicia sesión y obtiene tokens");
+        .WithDescription("Inicia sesión y obtiene tokens")
+        .RequireRateLimiting("auth");
 
         group.MapPost("/refresh", (RefreshRequest request, IUserService userService, ITokenService tokenService, ILogger<Program> logger) =>
         {
