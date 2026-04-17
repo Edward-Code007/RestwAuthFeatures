@@ -17,7 +17,6 @@ public interface ITokenService
     bool RevokeRefreshToken(string token);
     void RevokeTokenFamily(string familyId);
     void RevokeAllUserTokens(Guid userId);
-    ClaimsPrincipal? ValidateAccessToken(string token);
 }
 
 public class TokenService : ITokenService
@@ -32,8 +31,9 @@ public class TokenService : ITokenService
 
     public string GenerateAccessToken(User user)
     {
+        var jwtSection = _configuration.GetSection("Authentication:Jwt");
         var key = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!));
+            Encoding.UTF8.GetBytes(jwtSection["Key"]!));
 
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
@@ -51,11 +51,11 @@ public class TokenService : ITokenService
         }
 
         var expirationMinutes = int.Parse(
-            _configuration["Jwt:AccessTokenExpirationMinutes"] ?? "15");
+            jwtSection["AccesdsTokenExpirationMinutes"] ?? "15");
 
         var token = new JwtSecurityToken(
-            issuer: _configuration["Jwt:Issuer"],
-            audience: _configuration["Jwt:Audience"],
+            issuer: jwtSection["Issuer"],
+            audience: jwtSection["Audience"],
             claims: claims,
             expires: DateTime.UtcNow.AddMinutes(expirationMinutes),
             signingCredentials: credentials
@@ -71,8 +71,9 @@ public class TokenService : ITokenService
 
     public RefreshToken GenerateRefreshToken(Guid userId, string familyId)
     {
+        var jwtSection = _configuration.GetSection("Authentication:Jwt");
         var expirationDays = int.Parse(
-            _configuration["Jwt:RefreshTokenExpirationDays"] ?? "7");
+            jwtSection["RefreshTokenExpirationDays"] ?? "7");
 
         var refreshToken = new RefreshToken
         {
@@ -106,6 +107,7 @@ public class TokenService : ITokenService
         return RefreshTokenResult.Valid(refreshToken);
     }
 
+//RevokeFeatures
     public bool RevokeRefreshToken(string token)
     {
         if (!_refreshTokens.TryGetValue(token, out var refreshToken))
@@ -134,30 +136,6 @@ public class TokenService : ITokenService
         foreach (var token in userTokens)
         {
             token.IsRevoked = true;
-        }
-    }
-
-    public ClaimsPrincipal? ValidateAccessToken(string token)
-    {
-        var tokenHandler = new JwtSecurityTokenHandler();
-        var key = Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!);
-
-        try
-        {
-            return tokenHandler.ValidateToken(token, new TokenValidationParameters
-            {
-                ValidateIssuerSigningKey = true,
-                IssuerSigningKey = new SymmetricSecurityKey(key),
-                ValidateIssuer = true,
-                ValidIssuer = _configuration["Jwt:Issuer"],
-                ValidateAudience = true,
-                ValidAudience = _configuration["Jwt:Audience"],
-                ValidateLifetime = false
-            }, out _);
-        }
-        catch
-        {
-            return null;
         }
     }
 }

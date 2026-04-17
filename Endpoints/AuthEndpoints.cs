@@ -1,4 +1,8 @@
+using System.Runtime.CompilerServices;
 using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Google;
+using Microsoft.AspNetCore.Http.HttpResults;
 using RestAuth.Models;
 using RestAuth.Services;
 
@@ -12,11 +16,8 @@ public static class AuthEndpoints
 
         group.MapPost("/register", (RegisterRequest request, IUserService userService) =>
         {
-            if (userService.UsernameExists(request.Username))
-                return Results.BadRequest(new { error = "El nombre de usuario ya existe" });
-
-            if (userService.EmailExists(request.Email))
-                return Results.BadRequest(new { error = "El email ya está registrado" });
+            if (userService.UsernameExists(request.Username) || userService.EmailExists(request.Email))
+                return Results.BadRequest(new { error = "El Nombre de usuario o Email ya existe" });
 
             var user = userService.Register(request.Username, request.Email, request.Password);
 
@@ -101,6 +102,50 @@ public static class AuthEndpoints
         .WithName("LogoutAll")
         .WithDescription("Revoca todos los refresh tokens del usuario (logout de todas las sesiones)");
 
+        group.MapGet("google/signup", () => Results.Challenge(
+            new AuthenticationProperties { RedirectUri = "/auth/google/register" }
+            , [GoogleDefaults.AuthenticationScheme]));
+
+        group.MapGet("google/register", async (HttpContext ctx, IUserService userService,ITokenService tokenService) =>
+        {
+            var result = await ctx.AuthenticateAsync("temp");
+            if (!result.Succeeded)
+            {
+                return Results.Forbid();
+            }
+            var email = result.Principal!.FindFirst(ClaimTypes.Email)?.Value;
+            var name = result.Principal!.FindFirst(ClaimTypes.GivenName)?.Value;
+            var lastname = result.Principal!.FindFirst(ClaimTypes.Surname)?.Value;
+            await ctx.SignOutAsync();
+            if (!userService.EmailExists(email!))
+            {
+                var user = userService.Register($"{name!} {lastname!}", email!, "");
+                var token = tokenService.GenerateAccessToken(user);
+                var refreshToken = tokenService.GenerateRefreshToken(user.Id);
+                return Results.Created("http://localhost:5224/auth/google/register", new
+                {
+                    message = "Usuario Creado con exito",
+                    statuscode = 201,
+                    token,
+                    refreshToken
+                });
+            }else
+            {
+            var user = await userService.GetByEmail(email!);
+            var token = tokenService.GenerateAccessToken(user!);
+            var refreshToken = tokenService.GenerateRefreshToken(user!.Id);
+            return Results.Ok(new
+            {
+                message = "Usuario Autenticado",
+                statuscode = 200,
+                token,
+                refreshToken
+            });   
+            }
+
+        })
+         .WithName("LogInWGoogle")
+         .WithDescription("Autentica al Usuario a traves del Proveedor de Identidades de Google");
         return app;
     }
 }

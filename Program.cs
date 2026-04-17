@@ -1,6 +1,8 @@
+
 using System.Security.Claims;
 using System.Text;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
@@ -11,25 +13,50 @@ using RestAuth.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<ICacheService, CacheService>();
 builder.Services.AddSingleton<IUserService, UserService>();
 builder.Services.AddSingleton<ITokenService, TokenService>();
 
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+var AuthSection = builder.Configuration.GetSection("Authentication");
+var google = AuthSection.GetSection("Google");;
+var jwt = AuthSection.GetSection("Jwt");
+builder.Services.AddAuthentication( opt =>
+{
+    opt.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
+    opt.DefaultChallengeScheme = GoogleDefaults.AuthenticationScheme;
+})
     .AddJwtBearer(options =>
     {
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!)),
+                Encoding.UTF8.GetBytes(jwt["Key"]!)),
             ValidateIssuer = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"],
+            ValidIssuer = jwt["Issuer"],
             ValidateAudience = true,
-            ValidAudience = builder.Configuration["Jwt:Audience"],
+            ValidAudience = jwt["Audience"],
             ValidateLifetime = true,
             ClockSkew = TimeSpan.Zero
         };
+    })
+    .AddCookie("temp",opt =>
+    {
+        
+    })
+    .AddGoogle( opt =>
+    {
+        opt.ClientId = google["ClientId"]!;
+        opt.ClientSecret = google["ClientSecret"]!;
+        opt.CallbackPath = "/signingoogle";
+
+        opt.Scope.Add("email");
+        opt.Scope.Add("profile");
+
+        opt.SignInScheme = "temp";
     });
+
 
 builder.Services.AddAuthorization(options =>
 {
@@ -49,16 +76,18 @@ builder.Services.AddRateLimiter(options =>
 {
     
 
-    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
-        RateLimitPartition.GetSlidingWindowLimiter(
+    options.GlobalLimiter = PartitionedRateLimiter.CreateChained(
+        PartitionedRateLimiter.Create<HttpContext, string>(context =>
+        RateLimitPartition.GetSlidingWindowLimiter
+        (
             partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             factory: _ => new SlidingWindowRateLimiterOptions
             {
                 PermitLimit = 100,
                 Window = TimeSpan.FromMinutes(1),
                 SegmentsPerWindow = 6, 
-            }));
-
+            }))
+            );
 
     options.AddSlidingWindowLimiter("auth", config =>
     {
@@ -78,6 +107,7 @@ builder.Services.AddRateLimiter(options =>
             retryAfterSeconds = 60
         }, cancellationToken);
     };
+    
 });
 
 var app = builder.Build();
