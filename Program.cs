@@ -41,9 +41,9 @@ builder.Services.AddAuthentication( opt =>
             ClockSkew = TimeSpan.Zero
         };
     })
-    .AddCookie("temp",opt =>
+    .AddCookie(opt =>
     {
-        
+        opt.Cookie.Name = "temp";
     })
     .AddGoogle( opt =>
     {

@@ -28,6 +28,7 @@ Este proyecto tiene como finalidad demostrar conocimientos en:
 
 - Registro de usuarios con validación de email
 - Login con credenciales usuario/contraseña
+- Login con OAuth2 (Google Identity Provider)
 - Generación de tokens JWT de acceso (expiración configurable, por defecto 15 minutos)
 - Generación y validación de refresh tokens (expiración configurable, por defecto 7 días)
 - Revocación de tokens (logout)

@@ -106,7 +106,7 @@ public static class AuthEndpoints
             new AuthenticationProperties { RedirectUri = "/auth/google/register" }
             , [GoogleDefaults.AuthenticationScheme]));
 
-        group.MapGet("google/register", async (HttpContext ctx, IUserService userService,ITokenService tokenService) =>
+        group.MapGet("google/register", async (HttpContext ctx, IUserService userService, ITokenService tokenService) =>
         {
             var result = await ctx.AuthenticateAsync("temp");
             if (!result.Succeeded)
@@ -129,18 +129,19 @@ public static class AuthEndpoints
                     token,
                     refreshToken
                 });
-            }else
+            }
+            else
             {
-            var user = await userService.GetByEmail(email!);
-            var token = tokenService.GenerateAccessToken(user!);
-            var refreshToken = tokenService.GenerateRefreshToken(user!.Id);
-            return Results.Ok(new
-            {
-                message = "Usuario Autenticado",
-                statuscode = 200,
-                token,
-                refreshToken
-            });   
+                var user = await userService.GetByEmail(email!);
+                var token = tokenService.GenerateAccessToken(user!);
+                var refreshToken = tokenService.GenerateRefreshToken(user!.Id);
+                return Results.Ok(new
+                {
+                    message = "Usuario Autenticado",
+                    statuscode = 200,
+                    token,
+                    refreshToken
+                });
             }
 
         })
