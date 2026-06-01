@@ -1,5 +1,3 @@
-
-using System.Security.Claims;
 using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.Google;
@@ -7,7 +5,6 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using RestAuth.Endpoints;
-using RestAuth.Models;
 using RestAuth.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -19,16 +16,16 @@ builder.Services.AddSingleton<IUserService, UserService>();
 builder.Services.AddSingleton<ITokenService, TokenService>();
 
 var AuthSection = builder.Configuration.GetSection("Authentication");
-var google = AuthSection.GetSection("Google");;
+var google = AuthSection.GetSection("Google");
 var jwt = AuthSection.GetSection("Jwt");
-builder.Services.AddAuthentication( opt =>
+builder.Services.AddAuthentication(opt =>
 {
     opt.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
     opt.DefaultChallengeScheme = GoogleDefaults.AuthenticationScheme;
 })
-    .AddJwtBearer(options =>
+    .AddJwtBearer(opt =>
     {
-        options.TokenValidationParameters = new TokenValidationParameters
+        opt.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(
@@ -41,11 +38,11 @@ builder.Services.AddAuthentication( opt =>
             ClockSkew = TimeSpan.Zero
         };
     })
-    .AddCookie(opt =>
+    .AddCookie("temp", opt =>
     {
         opt.Cookie.Name = "temp";
     })
-    .AddGoogle( opt =>
+    .AddGoogle(opt =>
     {
         opt.ClientId = google["ClientId"]!;
         opt.ClientSecret = google["ClientSecret"]!;
@@ -56,7 +53,6 @@ builder.Services.AddAuthentication( opt =>
 
         opt.SignInScheme = "temp";
     });
-
 
 builder.Services.AddAuthorization(options =>
 {
@@ -70,12 +66,8 @@ builder.Services.AddAuthorization(options =>
         policy.RequireRole("User", "Admin"));
 
 });
-
-
 builder.Services.AddRateLimiter(options =>
 {
-    
-
     options.GlobalLimiter = PartitionedRateLimiter.CreateChained(
         PartitionedRateLimiter.Create<HttpContext, string>(context =>
         RateLimitPartition.GetSlidingWindowLimiter
@@ -85,7 +77,7 @@ builder.Services.AddRateLimiter(options =>
             {
                 PermitLimit = 100,
                 Window = TimeSpan.FromMinutes(1),
-                SegmentsPerWindow = 6, 
+                SegmentsPerWindow = 6,
             }))
             );
 
@@ -107,7 +99,7 @@ builder.Services.AddRateLimiter(options =>
             retryAfterSeconds = 60
         }, cancellationToken);
     };
-    
+
 });
 
 var app = builder.Build();
@@ -121,7 +113,6 @@ app.UseHttpsRedirection();
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
-
 app.MapAdminEndpoints();
 app.MapAuthEndpoints(app.Configuration);
 app.MapUserEndpoints();

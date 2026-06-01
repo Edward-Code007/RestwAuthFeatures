@@ -102,7 +102,8 @@ public static class AuthEndpoints
         .WithName("LogoutAll")
         .WithDescription("Revoca todos los refresh tokens del usuario (logout de todas las sesiones)");
 
-        group.MapGet("google/signup", () => Results.Challenge(
+        group.MapGet("google/signup", () => 
+        Results.Challenge(
             new AuthenticationProperties { RedirectUri = "/auth/google/register" }
             , [GoogleDefaults.AuthenticationScheme]));
 
@@ -116,7 +117,7 @@ public static class AuthEndpoints
             var email = result.Principal!.FindFirst(ClaimTypes.Email)?.Value;
             var name = result.Principal!.FindFirst(ClaimTypes.GivenName)?.Value;
             var lastname = result.Principal!.FindFirst(ClaimTypes.Surname)?.Value;
-            await ctx.SignOutAsync();
+            await ctx.SignOutAsync("temp");
             if (!userService.EmailExists(email!))
             {
                 var user = userService.Register($"{name!} {lastname!}", email!, "");

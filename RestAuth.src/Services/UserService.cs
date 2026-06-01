@@ -4,21 +4,7 @@ using RestAuth.Models;
 
 namespace RestAuth.Services;
 
-public interface IUserService
-{
-    User? GetById(Guid id);
-    User? GetByUsername(string username);
 
-    Task<User?> GetByEmail(string email);
-    User? ValidateCredentials(string username, string password);
-    User Register(string username, string email, string password);
-    bool UsernameExists(string username);
-    bool EmailExists(string email);
-    IEnumerable<User> GetAll();
-    bool AddRole(Guid userId, string role);
-    bool RemoveRole(Guid userId, string role);
-    bool DeleteUser(Guid userId);
-}
 
 public class UserService : IUserService
 {
@@ -39,7 +25,6 @@ public class UserService : IUserService
             Roles = ["User", "Admin"]
         };
     }
-
     public User? GetById(Guid id)
     {
         var cacheKey = _cache.UserByIdKey(id);
@@ -47,7 +32,6 @@ public class UserService : IUserService
         return _cache.GetOrCreate(cacheKey, () =>
             _users.TryGetValue(id, out var user) ? user : null);
     }
-
     public User? GetByUsername(string username)
     {
         var cacheKey = _cache.UserByUsernameKey(username);
@@ -56,7 +40,6 @@ public class UserService : IUserService
             _users.Values.FirstOrDefault(u =>
                 u.Username.Equals(username, StringComparison.OrdinalIgnoreCase)));
     }
-
     public User? ValidateCredentials(string username, string password)
     {
         var user = GetByUsername(username);
@@ -64,7 +47,6 @@ public class UserService : IUserService
 
         return VerifyPassword(password, user.PasswordHash) ? user : null;
     }
-
     public User Register(string username, string email, string password)
     {
         var user = new User
@@ -75,7 +57,7 @@ public class UserService : IUserService
         };
 
         _users[user.Id] = user;
-        
+
         _cache.Remove(_cache.AllUsersKey);
 
         _cache.Set(_cache.UserByIdKey(user.Id), user);
@@ -84,10 +66,8 @@ public class UserService : IUserService
 
         return user;
     }
-
     public bool UsernameExists(string username) =>
         GetByUsername(username) != null;
-
     public bool EmailExists(string email)
     {
         var cacheKey = _cache.EmailExistsKey(email);
@@ -96,13 +76,11 @@ public class UserService : IUserService
             _users.Values.Any(u =>
                 u.Email.Equals(email, StringComparison.OrdinalIgnoreCase)));
     }
-
     public IEnumerable<User> GetAll()
     {
         return _cache.GetOrCreate(_cache.AllUsersKey, () =>
             _users.Values.ToList(), CacheEntryType.Short) ?? [];
     }
-
     public bool AddRole(Guid userId, string role)
     {
         if (!_users.TryGetValue(userId, out var user))
@@ -117,7 +95,6 @@ public class UserService : IUserService
 
         return true;
     }
-
     public bool RemoveRole(Guid userId, string role)
     {
         if (!_users.TryGetValue(userId, out var user))
@@ -135,7 +112,6 @@ public class UserService : IUserService
 
         return true;
     }
-
     public bool DeleteUser(Guid userId)
     {
         if (_users.TryRemove(userId, out var user))
@@ -150,7 +126,6 @@ public class UserService : IUserService
         }
         return false;
     }
-
     private void InvalidateUserCache(User user)
     {
         _cache.RemoveMultiple(
@@ -159,14 +134,12 @@ public class UserService : IUserService
             _cache.AllUsersKey
         );
     }
-
     private static string HashPassword(string password)
     {
         var salt = RandomNumberGenerator.GetBytes(16);
         var hash = Rfc2898DeriveBytes.Pbkdf2(password, salt, 100000, HashAlgorithmName.SHA256, 32);
         return $"{Convert.ToBase64String(salt)}:{Convert.ToBase64String(hash)}";
     }
-
     private static bool VerifyPassword(string password, string storedHash)
     {
         var parts = storedHash.Split(':');
@@ -178,10 +151,9 @@ public class UserService : IUserService
 
         return CryptographicOperations.FixedTimeEquals(hash, computedHash);
     }
-
-  public async Task<User?> GetByEmail(string email)
-  {
-    var user = this._users.Values.FirstOrDefault(x => x.Email == email);
-    return user;
-  }
+    public async Task<User?> GetByEmail(string email)
+    {
+        var user = this._users.Values.FirstOrDefault(x => x.Email == email);
+        return user;
+    }
 }
