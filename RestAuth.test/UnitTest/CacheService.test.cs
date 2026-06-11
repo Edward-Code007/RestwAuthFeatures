@@ -34,13 +34,5 @@ public class CacheServiceTest
         Assert.IsType<User>(user);
         Assert.Equal("testuser", user.Username);
     }
-    [Fact]
-    public void TestName()
-    {
-        // Given
     
-        // When
-    
-        // Then
-    }
 }
